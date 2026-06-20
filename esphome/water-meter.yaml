@@ -1,0 +1,91 @@
+# Water meter: QMC5883L (not HMC5883L) on the meter body, counting the dial magnet.
+# The counter survives reboots and OTA updates, feeds the Home Assistant Energy dashboard and can
+# be set to the physical meter reading with the API action set_water_meter_litres(litres).
+#
+# Wiring (QMC5883L module): VCC 3.3 V, GND, SDA -> sda_pin, SCL -> scl_pin.
+# Fix the module on the meter body next to the dial; pick `axis` from the "field" sensor.
+
+defaults:
+  sda_pin: GPIO21
+  scl_pin: GPIO22
+  axis: z
+  threshold_high: "50"
+  threshold_low: "-50"
+  min_change: "20"
+  litres_per_edge: "0.5"
+  sample_interval: 50ms
+  field_report_interval: 5s
+  flash_write_interval: 20min
+  initial_litres: "0"
+  name: Water meter
+
+i2c:
+  id: water_meter_i2c
+  sda: ${sda_pin}
+  scl: ${scl_pin}
+
+preferences:
+  flash_write_interval: ${flash_write_interval}
+
+globals:
+  # double: a float stops adding 0.5 L at around 8,400 m³
+  - id: water_meter_litres
+    type: double
+    restore_value: yes
+    initial_value: "${initial_litres}"
+
+api:
+  actions:
+    - action: set_water_meter_litres
+      variables:
+        litres: float
+      then:
+        - globals.set:
+            id: water_meter_litres
+            value: !lambda "return litres;"
+        - component.update: water_meter_total
+
+binary_sensor:
+  - platform: template
+    id: water_meter_edge
+    internal: true
+    lambda: return {};
+    on_press:
+      then:
+        - lambda: id(water_meter_litres) += ${litres_per_edge};
+        - component.update: water_meter_total
+    on_release:
+      then:
+        - lambda: id(water_meter_litres) += ${litres_per_edge};
+        - component.update: water_meter_total
+
+sensor:
+  - platform: template
+    id: water_meter_total
+    name: "${name} total"
+    lambda: return id(water_meter_litres);
+    update_interval: 60s
+    unit_of_measurement: L
+    accuracy_decimals: 1
+    device_class: water
+    state_class: total_increasing
+    icon: mdi:water
+
+  - platform: qmc5883l
+    i2c_id: water_meter_i2c
+    range: 200uT
+    oversampling: 512x
+    update_interval: ${sample_interval}
+    field_strength_${axis}:
+      name: "${name} field"
+      entity_category: diagnostic
+      filters:
+        - median:
+            window_size: 5
+            send_every: 1
+        - delta: ${min_change}
+        - lambda: |-
+            if (x > ${threshold_high}) id(water_meter_edge).publish_state(true);
+            if (x < ${threshold_low}) id(water_meter_edge).publish_state(false);
+            return x;
+        - throttle: ${field_report_interval}

@@ -10,6 +10,12 @@ real hardware at home and is written so you can include it as it is, without cop
 | [`esphome/`](esphome/) | ESPHome packages | `packages:` with a `github://` source, see [esphome/README.md](esphome/README.md) |
 | [`blueprints/automation/`](blueprints/automation/) | Home Assistant automation blueprints | import by URL in Home Assistant |
 
+## ESPHome packages
+
+| Package | What it does | Usage |
+|---|---|---|
+| [Water meter](esphome/water-meter.yaml) | Counts water with a magnetometer on the meter, no plumbing; the counter survives reboots, can be set from Home Assistant and feeds the Energy dashboard | [example](esphome/examples/water-meter.yaml) |
+
 ## Blueprints
 
 | Blueprint | What it does | Import |

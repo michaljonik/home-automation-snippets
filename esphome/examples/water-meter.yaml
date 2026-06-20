@@ -1,0 +1,36 @@
+# Water meter on an ESP32-CAM (camera unused).
+
+esphome:
+  name: water-meter
+  friendly_name: Water meter
+
+esp32:
+  board: esp32cam
+  framework:
+    type: arduino
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+
+packages:
+  water_meter:
+    url: https://github.com/michaljonik/home-automation-snippets
+    ref: main
+    files:
+      - path: esphome/water-meter.yaml
+        vars:
+          sda_pin: GPIO14
+          scl_pin: GPIO15
+          # meter reading on the day of installation, first boot only
+          initial_litres: "0"
