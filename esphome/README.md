@@ -31,3 +31,18 @@ updates, and can be set to the meter reading from Home Assistant with the action
 `set_water_meter_litres`. It exposes a `total_increasing` water sensor for the Energy dashboard and
 the raw field for calibration. Example: [examples/water-meter.yaml](examples/water-meter.yaml)
 (ESP32-CAM).
+
+### Gate controller
+
+[`gate-controller.yaml`](gate-controller.yaml) turns a gate with a single step button into a cover
+with open, close and stop. Two limit switches and the photocell feed a state machine, and each
+command becomes the right number of presses. If no limit switch confirms a movement within
+`motion_timeout`, the state becomes unknown and commands are refused.
+
+- Auto close after passing: the "auto close" switch opens the gate and closes it once the
+  photocell clears, after a car has driven through.
+- Knock to close: tap-tap, pause, tap-tap on the photocell closes the gate. Off by default and not
+  authenticated.
+
+It only presses the controller's button; the controller's own safety devices stay in charge.
+Example: [examples/gate.yaml](examples/gate.yaml).

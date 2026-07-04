@@ -15,6 +15,7 @@ real hardware at home and is written so you can include it as it is, without cop
 | Package | What it does | Usage |
 |---|---|---|
 | [Water meter](esphome/water-meter.yaml) | Counts water with a magnetometer on the meter, no plumbing; the counter survives reboots, can be set from Home Assistant and feeds the Energy dashboard | [example](esphome/examples/water-meter.yaml) |
+| [Gate controller](esphome/gate-controller.yaml) | Single-button gate as a cover with open, close and stop; state from limit switches and photocell, auto close after a car passes, optional knock to close | [example](esphome/examples/gate.yaml) |
 
 ## Blueprints
 
@@ -28,6 +29,10 @@ Some packages here switch mains-powered heaters or drive motors. The code adds s
 does not replace the protection built into the appliance, the drive controller or the electrical
 installation. Wiring on 230/400 V belongs to a qualified electrician. You use everything here at
 your own risk.
+
+The gate package only simulates a press of the gate controller's button and must never be wired to
+bypass its photocells, safety edges or force limiting. Remote and automatic closing can move the
+gate when nobody is watching it.
 
 ## License
 

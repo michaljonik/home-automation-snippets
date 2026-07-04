@@ -1,0 +1,324 @@
+# Gate controller: a single-button gate as a Home Assistant cover with real open, close and stop.
+#   - state machine fed by limit switches and photocell; open/close/stop become 1 to 3 presses
+#   - state "unknown" (no limit switch within motion_timeout): commands refused until a limit
+#     switch or the gate's own remote brings the model back
+#   - auto close: the "auto close" switch opens the gate and closes it once a car has passed the
+#     photocell (position above auto_close_min_position); not restored after a reboot
+#   - knock to close (off by default): tap-tap, pause, tap-tap on the photocell closes the gate;
+#     not authenticated, change the rhythm before enabling
+# Only simulates the controller's button; never wire it to bypass photocells or safety edges.
+#
+# Wiring (defaults; controller inputs are often 12/24 V, isolate them from the ESP):
+#   button_pin  open-drain, active low, parallel to the controller's step (open/stop/close) input;
+#               common GND required. With a relay or optocoupler set button_inverted/open_drain.
+#   closed_pin  "fully closed" limit switch, active high (pull-down)
+#   opened_pin  "fully open" limit switch, active high (pull-down)
+#   beam_pin    photocell output, high = beam blocked (pull-down)
+
+defaults:
+  name: Gate
+  button_pin: GPIO14
+  button_inverted: "true"
+  button_open_drain: "true"
+  press_duration: 250ms
+  press_interval: 500ms
+  closed_pin: GPIO33
+  opened_pin: GPIO32
+  limit_inverted: "false"
+  limit_pullup: "false"
+  limit_pulldown: "true"
+  limit_delayed_on: 100ms
+  limit_delayed_off: 200ms
+  beam_pin: GPIO25
+  beam_inverted: "false"
+  beam_pullup: "false"
+  beam_pulldown: "true"
+  beam_delayed_on: 200ms
+  beam_delayed_off: 100ms
+  open_duration: 22s
+  close_duration: 22s
+  motion_timeout: "45"
+  boot_settle_time: 2s
+  auto_close_min_position: "0.5"
+  knock_to_close: "false"
+
+substitutions:
+  gate_unknown:          "0"
+  gate_closed:           "1"
+  gate_opening:          "2"
+  gate_opening_blocked:  "3"
+  gate_opening_stopped:  "4"
+  gate_opened:           "5"
+  gate_closing:          "6"
+  gate_closing_blocked:  "7"
+  gate_closing_stopped:  "8"
+
+esphome:
+  on_boot:
+    priority: -10
+    then:
+      - delay: ${boot_settle_time}
+      - lambda: |-
+          if (id(gate_is_closed).state) {
+            id(gate_set_state).execute(${gate_closed});
+            id(gate_cover).position = COVER_CLOSED;
+            id(gate_cover).publish_state();
+          } else if (id(gate_is_opened).state) {
+            id(gate_set_state).execute(${gate_opened});
+            id(gate_cover).position = COVER_OPEN;
+            id(gate_cover).publish_state();
+          } else {
+            id(gate_set_state).execute(${gate_unknown});
+          }
+
+globals:
+  - id: gate_state
+    type: int
+    initial_value: "${gate_unknown}"
+  - id: gate_motion_since
+    type: uint32_t
+    initial_value: "0"
+  - id: gate_auto_close
+    type: bool
+    initial_value: "false"
+  - id: gate_knock_enabled
+    type: bool
+    initial_value: "${knock_to_close}"
+
+script:
+  - id: gate_set_state
+    parameters:
+      new_state: int
+    then:
+      - lambda: |-
+          static const char *const names[] = {
+            "unknown", "closed", "opening", "opening, blocked", "opening, stopped",
+            "open", "closing", "closing, blocked", "closing, stopped"};
+          auto direction = [](int s) {
+            if (s == ${gate_opening} || s == ${gate_opening_blocked}) return 1;
+            if (s == ${gate_closing} || s == ${gate_closing_blocked}) return 2;
+            return 0;
+          };
+          int old_state = id(gate_state);
+          if (direction(new_state) != 0 && direction(new_state) != direction(old_state))
+            id(gate_motion_since) = millis();
+          id(gate_state) = new_state;
+          ESP_LOGI("gate", "state %s -> %s", names[old_state], names[new_state]);
+          id(gate_state_text).publish_state(names[new_state]);
+
+  # 1 = press, 2 = reverse while moving, 3 = resume the direction it stopped in
+  - id: gate_multipress
+    mode: restart
+    parameters:
+      count: int
+    then:
+      - repeat:
+          count: !lambda return count;
+          then:
+            - switch.turn_on: gate_button
+            - delay: ${press_interval}
+
+text_sensor:
+  - platform: template
+    id: gate_state_text
+    name: "${name} state"
+    entity_category: diagnostic
+    update_interval: never
+
+switch:
+  - platform: gpio
+    id: gate_button
+    internal: true
+    restore_mode: ALWAYS_OFF
+    pin:
+      number: ${button_pin}
+      inverted: ${button_inverted}
+      mode:
+        output: true
+        open_drain: ${button_open_drain}
+    on_turn_on:
+      # predict the gate's reaction to this press
+      - lambda: |-
+          switch (id(gate_state)) {
+            case ${gate_opening}:
+            case ${gate_opening_blocked}: id(gate_set_state).execute(${gate_opening_stopped}); break;
+            case ${gate_opened}:
+            case ${gate_opening_stopped}: id(gate_set_state).execute(${gate_closing}); break;
+            case ${gate_closing}:
+            case ${gate_closing_blocked}: id(gate_set_state).execute(${gate_closing_stopped}); break;
+            case ${gate_closed}:
+            case ${gate_closing_stopped}: id(gate_set_state).execute(${gate_opening}); break;
+          }
+      - delay: ${press_duration}
+      - switch.turn_off: gate_button
+
+  - platform: template
+    id: gate_auto_close_switch
+    name: "${name} auto close"
+    lambda: return id(gate_auto_close);
+    turn_on_action:
+      - lambda: |-
+          id(gate_auto_close) = true;
+          id(gate_cover).make_call().set_command_open().perform();
+    turn_off_action:
+      - lambda: id(gate_auto_close) = false;
+
+binary_sensor:
+  - platform: template
+    id: gate_is_opening
+    internal: true
+    lambda: return id(gate_state) == ${gate_opening};
+
+  - platform: template
+    id: gate_is_closing
+    internal: true
+    lambda: return id(gate_state) == ${gate_closing};
+
+  - platform: gpio
+    id: gate_is_closed
+    name: "${name} closed limit"
+    pin:
+      number: ${closed_pin}
+      inverted: ${limit_inverted}
+      mode:
+        input: true
+        pullup: ${limit_pullup}
+        pulldown: ${limit_pulldown}
+    filters:
+      - delayed_on: ${limit_delayed_on}
+      - delayed_off: ${limit_delayed_off}
+    on_press:
+      - lambda: id(gate_set_state).execute(${gate_closed});
+    on_release:
+      - lambda: id(gate_set_state).execute(${gate_opening});
+
+  - platform: gpio
+    id: gate_is_opened
+    name: "${name} open limit"
+    pin:
+      number: ${opened_pin}
+      inverted: ${limit_inverted}
+      mode:
+        input: true
+        pullup: ${limit_pullup}
+        pulldown: ${limit_pulldown}
+    filters:
+      - delayed_on: ${limit_delayed_on}
+      - delayed_off: ${limit_delayed_off}
+    on_press:
+      - lambda: id(gate_set_state).execute(${gate_opened});
+    on_release:
+      - lambda: id(gate_set_state).execute(${gate_closing});
+
+  - platform: gpio
+    id: gate_beam
+    name: "${name} photocell"
+    device_class: occupancy
+    pin:
+      number: ${beam_pin}
+      inverted: ${beam_inverted}
+      mode:
+        input: true
+        pullup: ${beam_pullup}
+        pulldown: ${beam_pulldown}
+    filters:
+      - delayed_on: ${beam_delayed_on}
+      - delayed_off: ${beam_delayed_off}
+    on_press:
+      - lambda: |-
+          switch (id(gate_state)) {
+            case ${gate_closing}: id(gate_set_state).execute(${gate_closing_blocked}); break;
+            case ${gate_opening}: id(gate_set_state).execute(${gate_opening_blocked}); break;
+          }
+    on_release:
+      - lambda: |-
+          switch (id(gate_state)) {
+            case ${gate_closing_blocked}: id(gate_set_state).execute(${gate_closing}); break;
+            case ${gate_opening_blocked}: id(gate_set_state).execute(${gate_opening}); break;
+          }
+          if (id(gate_auto_close) && id(gate_state) != ${gate_closed} &&
+              id(gate_cover).position > ${auto_close_min_position}f) {
+            ESP_LOGI("gate", "beam clear at position %.2f, auto-closing", id(gate_cover).position);
+            id(gate_cover).make_call().set_command_close().perform();
+          }
+    on_multi_click:
+      - timing:
+          - ON for at most 0.4s
+          - OFF for at most 0.4s
+          - ON for at most 0.4s
+          - OFF for 1s to 2s
+          - ON for at most 0.4s
+          - OFF for at most 0.4s
+          - ON for at most 0.4s
+          - OFF for at least 1s
+        then:
+          - lambda: |-
+              if (!id(gate_knock_enabled)) {
+                ESP_LOGD("gate", "knock sequence seen, knock_to_close is off");
+              } else if (!id(gate_is_closed).state) {
+                ESP_LOGI("gate", "knock sequence, closing");
+                id(gate_cover).make_call().set_command_close().perform();
+              }
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          int s = id(gate_state);
+          bool moving = s == ${gate_opening} || s == ${gate_opening_blocked} ||
+                        s == ${gate_closing} || s == ${gate_closing_blocked};
+          if (moving && millis() - id(gate_motion_since) > ${motion_timeout} * 1000UL) {
+            ESP_LOGW("gate", "no limit switch after ${motion_timeout} s of movement, state unknown");
+            id(gate_auto_close) = false;
+            id(gate_auto_close_switch).publish_state(false);
+            id(gate_set_state).execute(${gate_unknown});
+          }
+
+cover:
+  - platform: feedback
+    id: gate_cover
+    name: ${name}
+    device_class: gate
+    has_built_in_endstop: true
+    infer_endstop_from_movement: false
+    open_endstop: gate_is_opened
+    close_endstop: gate_is_closed
+    open_sensor: gate_is_opening
+    close_sensor: gate_is_closing
+    open_duration: ${open_duration}
+    close_duration: ${close_duration}
+    direction_change_wait_time: 1s
+    obstacle_rollback: false
+    open_action:
+      - lambda: |-
+          switch (id(gate_state)) {
+            case ${gate_closed}:
+            case ${gate_closing_stopped}:  id(gate_multipress).execute(1); break;
+            case ${gate_closing}:
+            case ${gate_closing_blocked}:  id(gate_multipress).execute(2); break;
+            case ${gate_opening_stopped}:  id(gate_multipress).execute(3); break;
+            case ${gate_unknown}:          ESP_LOGW("gate", "open refused: state unknown"); break;
+          }
+    close_action:
+      - lambda: |-
+          switch (id(gate_state)) {
+            case ${gate_opened}:
+            case ${gate_opening_stopped}:  id(gate_multipress).execute(1); break;
+            case ${gate_opening}:
+            case ${gate_opening_blocked}:  id(gate_multipress).execute(2); break;
+            case ${gate_closing_stopped}:  id(gate_multipress).execute(3); break;
+            case ${gate_unknown}:          ESP_LOGW("gate", "close refused: state unknown"); break;
+          }
+          id(gate_auto_close) = false;
+          id(gate_auto_close_switch).publish_state(false);
+    stop_action:
+      - lambda: |-
+          switch (id(gate_state)) {
+            case ${gate_opening}:
+            case ${gate_opening_blocked}:
+            case ${gate_closing}:
+            case ${gate_closing_blocked}:  id(gate_multipress).execute(1); break;
+            case ${gate_unknown}:          ESP_LOGW("gate", "stop refused: state unknown"); break;
+          }
+          id(gate_auto_close) = false;
+          id(gate_auto_close_switch).publish_state(false);

@@ -1,0 +1,40 @@
+# Gate controller on a generic ESP32. Read the safety note in esphome/gate-controller.yaml first.
+
+esphome:
+  name: gate
+  friendly_name: Gate
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+
+packages:
+  gate:
+    url: https://github.com/michaljonik/home-automation-snippets
+    ref: main
+    files:
+      - path: esphome/gate-controller.yaml
+        vars:
+          name: Entrance gate
+          button_pin: GPIO14
+          closed_pin: GPIO33
+          opened_pin: GPIO32
+          beam_pin: GPIO25
+          open_duration: 22s
+          close_duration: 22s
+          motion_timeout: "40"
+          knock_to_close: "false"
