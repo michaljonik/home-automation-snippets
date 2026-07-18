@@ -46,3 +46,17 @@ command becomes the right number of presses. If no limit switch confirms a movem
 
 It only presses the controller's button; the controller's own safety devices stay in charge.
 Example: [examples/gate.yaml](examples/gate.yaml).
+
+### Sauna controller
+
+[`sauna-controller.yaml`](sauna-controller.yaml) is a thermostat for an electric sauna stove that
+keeps its safety limits on the ESP, so they work when Home Assistant or Wi-Fi is down:
+
+- over-temperature cut-off, latched across reboots and cleared only by a button below the limit;
+- sensor timeout, for a sensor that goes silent, not only one that reads an invalid value;
+- maximum run time;
+- OFF after every boot, and a relay interlock that switches the relay off whenever the thermostat
+  is OFF or the latch is set.
+
+A local button switches it on (hold 3 s) and off. It complements the stove's own thermal cut-out
+and does not replace it. Example: [examples/sauna.yaml](examples/sauna.yaml).

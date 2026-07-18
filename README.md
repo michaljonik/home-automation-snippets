@@ -16,6 +16,7 @@ real hardware at home and is written so you can include it as it is, without cop
 |---|---|---|
 | [Water meter](esphome/water-meter.yaml) | Counts water with a magnetometer on the meter, no plumbing; the counter survives reboots, can be set from Home Assistant and feeds the Energy dashboard | [example](esphome/examples/water-meter.yaml) |
 | [Gate controller](esphome/gate-controller.yaml) | Single-button gate as a cover with open, close and stop; state from limit switches and photocell, auto close after a car passes, optional knock to close | [example](esphome/examples/gate.yaml) |
+| [Sauna controller](esphome/sauna-controller.yaml) | Sauna thermostat with its safety limits on the ESP: latched over-temperature cut-off, sensor timeout, max run time, OFF after boot, relay interlock | [example](esphome/examples/sauna.yaml) |
 
 ## Blueprints
 

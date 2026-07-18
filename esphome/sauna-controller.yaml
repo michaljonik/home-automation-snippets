@@ -1,0 +1,194 @@
+# Sauna controller: thermostat that keeps its safety limits on the ESP, without Home Assistant.
+#   - over-temperature cut-off at cutoff_temperature, latched across reboots; cleared only by the
+#     "reset overtemp latch" button once the temperature is below the cutoff
+#   - sensor timeout: heating stops when the sensor stops reporting, not only when it reads NaN
+#   - max_run_time_min counted from the moment the thermostat leaves OFF
+#   - OFF after every boot; relay forced off whenever the thermostat is OFF or the latch is set
+#   - "trip reason" sensor says which limit fired
+# Does not replace the stove's own thermal cut-out.
+#
+# Wiring (defaults):
+#   one_wire_pin  DS18B20 data, 4.7 kOhm pull-up to 3.3 V
+#   relay_pin     SSR input, active low (SSR + to 3.3 V, - to the pin); let the SSR switch a
+#                 contactor coil rather than the heater itself
+#   button_pin    push button to GND (internal pull-up); short press OFF, hold 3 s HEAT
+
+defaults:
+  one_wire_pin: GPIO33
+  relay_pin: GPIO26
+  relay_inverted: "true"
+  button_pin: GPIO14
+  min_temperature: "70"
+  max_temperature: "110"
+  target_temperature: "95"
+  cutoff_temperature: "115"
+  sensor_timeout_s: "120"
+  max_run_time_min: "240"
+  name: Sauna
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - climate.control:
+            id: sauna_thermostat
+            mode: "OFF"
+        - switch.turn_off: sauna_relay
+        - text_sensor.template.publish:
+            id: sauna_trip_reason
+            state: !lambda 'return id(sauna_overtemp_latched) ? "overtemp (latched)" : "none";'
+
+globals:
+  - id: sauna_last_valid_ms
+    type: uint32_t
+    initial_value: "0"
+  - id: sauna_heat_since_ms   # 0 = thermostat OFF
+    type: uint32_t
+    initial_value: "0"
+  - id: sauna_overtemp_latched
+    type: bool
+    restore_value: true
+    initial_value: "false"
+
+one_wire:
+  - platform: gpio
+    pin: ${one_wire_pin}
+
+sensor:
+  - platform: dallas_temp
+    id: sauna_temperature
+    name: "${name} temperature"
+    update_interval: 10s
+    on_value:
+      - lambda: |-
+          if (!std::isnan(x) && x > -20.0f) id(sauna_last_valid_ms) = millis();
+
+switch:
+  - platform: gpio
+    id: sauna_relay
+    name: "${name} heater"
+    pin:
+      number: ${relay_pin}
+      inverted: ${relay_inverted}
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      - if:
+          condition:
+            lambda: |-
+              return id(sauna_overtemp_latched) ||
+                     id(sauna_thermostat).mode == climate::CLIMATE_MODE_OFF;
+          then:
+            - switch.turn_off: sauna_relay
+
+binary_sensor:
+  - platform: gpio
+    id: sauna_button
+    pin:
+      number: ${button_pin}
+      mode: INPUT_PULLUP
+      inverted: true
+    on_multi_click:
+      - timing:
+          - ON for 50ms to 1s
+          - OFF for at least 50ms
+        then:
+          - climate.control:
+              id: sauna_thermostat
+              mode: "OFF"
+      - timing:
+          - ON for at least 3s
+        then:
+          - climate.control:
+              id: sauna_thermostat
+              mode: "HEAT"
+
+climate:
+  - platform: thermostat
+    id: sauna_thermostat
+    name: "${name}"
+    sensor: sauna_temperature
+    visual:
+      temperature_step: 1 °C
+      min_temperature: ${min_temperature}
+      max_temperature: ${max_temperature}
+    default_preset: Home
+    on_boot_restore_from: default_preset
+    preset:
+      - name: Home
+        default_target_temperature_low: ${target_temperature} °C
+    heat_deadband: 0.5
+    min_idle_time: 10s
+    min_heating_off_time: 1s
+    min_heating_run_time: 1s
+    heat_action:
+      - switch.turn_on: sauna_relay
+    idle_action:
+      - switch.turn_off: sauna_relay
+
+text_sensor:
+  - platform: template
+    id: sauna_trip_reason
+    name: "${name} trip reason"
+    entity_category: diagnostic
+
+script:
+  - id: sauna_trip
+    mode: queued
+    parameters:
+      reason: string
+    then:
+      - switch.turn_off: sauna_relay
+      - climate.control:
+          id: sauna_thermostat
+          mode: "OFF"
+      - text_sensor.template.publish:
+          id: sauna_trip_reason
+          state: !lambda "return reason;"
+      - logger.log:
+          level: ERROR
+          format: "Safety trip: %s"
+          args: ["reason.c_str()"]
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          const uint32_t now = millis();
+          const float t = id(sauna_temperature).state;
+          const bool heating = id(sauna_thermostat).mode != climate::CLIMATE_MODE_OFF;
+          const bool relay_on = id(sauna_relay).state;
+
+          if (!std::isnan(t) && t >= ${cutoff_temperature}) {
+            if (!id(sauna_overtemp_latched)) {
+              id(sauna_overtemp_latched) = true;
+              id(sauna_trip).execute("overtemp");
+              return;
+            }
+          }
+          if (id(sauna_overtemp_latched)) {
+            if (heating || relay_on) id(sauna_trip).execute("overtemp (latched)");
+            return;
+          }
+          if (!heating) {
+            id(sauna_heat_since_ms) = 0;
+            if (relay_on) id(sauna_trip).execute("relay on while OFF");
+            return;
+          }
+          if (id(sauna_heat_since_ms) == 0) id(sauna_heat_since_ms) = now ? now : 1;
+
+          if (now - id(sauna_last_valid_ms) > ${sensor_timeout_s}UL * 1000UL) {
+            id(sauna_trip).execute("sensor timeout");
+          } else if (now - id(sauna_heat_since_ms) > ${max_run_time_min}UL * 60000UL) {
+            id(sauna_trip).execute("max run time");
+          }
+
+button:
+  - platform: template
+    name: "${name} reset overtemp latch"
+    entity_category: config
+    on_press:
+      - lambda: |-
+          const float t = id(sauna_temperature).state;
+          if (std::isnan(t) || t >= ${cutoff_temperature}) return;
+          id(sauna_overtemp_latched) = false;
+          id(sauna_trip_reason).publish_state("none");

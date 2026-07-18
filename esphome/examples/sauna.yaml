@@ -1,0 +1,34 @@
+# Sauna controller on a NodeMCU-32S.
+
+esphome:
+  name: sauna
+  friendly_name: Sauna
+
+esp32:
+  board: nodemcu-32s
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+
+packages:
+  sauna:
+    url: https://github.com/michaljonik/home-automation-snippets
+    ref: main
+    files:
+      - path: esphome/sauna-controller.yaml
+        vars:
+          cutoff_temperature: "115"
+          max_run_time_min: "240"
