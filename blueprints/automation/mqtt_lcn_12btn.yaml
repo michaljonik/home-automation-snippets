@@ -1,0 +1,240 @@
+blueprint:
+  name: MQTT LCN GT12 Keyboard
+  description: >-
+    Controls an LCN GT12 keyboard (12 buttons) with hit (short) and make (long) actions.
+    Key presses come over MQTT as topic
+    domiq/LCN/keypress/0/<module>/<key> and payload hit, make or break.
+  domain: automation
+  input:
+    mqtt_trigger:
+      name: MQTT trigger
+      description: "Set up an MQTT trigger for your LCN module. Topic format: domiq/LCN/keypress/0/MODULE_ID/# (e.g. domiq/LCN/keypress/0/10/#). Remember to pick the MQTT platform."
+      selector:
+        trigger: {}
+    
+    # --- TABLE A (buttons 1-8) ---
+    
+    button_1_hit:
+      name: Button 1 (A1) - Hit (short press)
+      default: []
+      selector:
+        action: {}
+    button_1_make:
+      name: Button 1 (A1) - Make (long press)
+      default: []
+      selector:
+        action: {}
+
+    button_2_hit:
+      name: Button 2 (A2) - Hit (short press)
+      default: []
+      selector:
+        action: {}
+    button_2_make:
+      name: Button 2 (A2) - Make (long press)
+      default: []
+      selector:
+        action: {}
+
+    button_3_hit:
+      name: Button 3 (A3) - Hit (short press)
+      default: []
+      selector:
+        action: {}
+    button_3_make:
+      name: Button 3 (A3) - Make (long press)
+      default: []
+      selector:
+        action: {}
+
+    button_4_hit:
+      name: Button 4 (A4) - Hit (short press)
+      default: []
+      selector:
+        action: {}
+    button_4_make:
+      name: Button 4 (A4) - Make (long press)
+      default: []
+      selector:
+        action: {}
+
+    button_5_hit:
+      name: Button 5 (A5) - Hit (short press)
+      default: []
+      selector:
+        action: {}
+    button_5_make:
+      name: Button 5 (A5) - Make (long press)
+      default: []
+      selector:
+        action: {}
+
+    button_6_hit:
+      name: Button 6 (A6) - Hit (short press)
+      default: []
+      selector:
+        action: {}
+    button_6_make:
+      name: Button 6 (A6) - Make (long press)
+      default: []
+      selector:
+        action: {}
+
+    button_7_hit:
+      name: Button 7 (A7) - Hit (short press)
+      default: []
+      selector:
+        action: {}
+    button_7_make:
+      name: Button 7 (A7) - Make (long press)
+      default: []
+      selector:
+        action: {}
+
+    button_8_hit:
+      name: Button 8 (A8) - Hit (short press)
+      default: []
+      selector:
+        action: {}
+    button_8_make:
+      name: Button 8 (A8) - Make (long press)
+      default: []
+      selector:
+        action: {}
+
+    # --- TABLE B (buttons 9-12) ---
+
+    button_9_hit:
+      name: Button 9 (B1) - Hit (short press)
+      default: []
+      selector:
+        action: {}
+    button_9_make:
+      name: Button 9 (B1) - Make (long press)
+      default: []
+      selector:
+        action: {}
+
+    button_10_hit:
+      name: Button 10 (B2) - Hit (short press)
+      default: []
+      selector:
+        action: {}
+    button_10_make:
+      name: Button 10 (B2) - Make (long press)
+      default: []
+      selector:
+        action: {}
+
+    button_11_hit:
+      name: Button 11 (B3) - Hit (short press)
+      default: []
+      selector:
+        action: {}
+    button_11_make:
+      name: Button 11 (B3) - Make (long press)
+      default: []
+      selector:
+        action: {}
+
+    button_12_hit:
+      name: Button 12 (B4) - Hit (short press)
+      default: []
+      selector:
+        action: {}
+    button_12_make:
+      name: Button 12 (B4) - Make (long press)
+      default: []
+      selector:
+        action: {}
+
+mode: parallel
+max_exceeded: silent
+
+# The trigger comes from the user's input, so the broker filters by module.
+trigger: !input mqtt_trigger
+
+variables:
+  # Extract Key ID (A1, B1, etc.) from the topic provided by the user's MQTT trigger
+  button_channel: "{{ trigger.topic.split('/')[-1] if trigger.topic is defined else '' }}"
+  # Extract Action (hit/make/break) from the payload
+  action_type: "{{ trigger.payload if trigger.payload is defined else '' }}"
+
+action:
+  - choose:
+      # --- TABLE A MAPPING (1-8) ---
+      
+      # Button 1 -> A1
+      - conditions: "{{ button_channel == 'A1' and action_type == 'hit' }}"
+        sequence: !input button_1_hit
+      - conditions: "{{ button_channel == 'A1' and action_type == 'make' }}"
+        sequence: !input button_1_make
+
+      # Button 2 -> A2
+      - conditions: "{{ button_channel == 'A2' and action_type == 'hit' }}"
+        sequence: !input button_2_hit
+      - conditions: "{{ button_channel == 'A2' and action_type == 'make' }}"
+        sequence: !input button_2_make
+
+      # Button 3 -> A3
+      - conditions: "{{ button_channel == 'A3' and action_type == 'hit' }}"
+        sequence: !input button_3_hit
+      - conditions: "{{ button_channel == 'A3' and action_type == 'make' }}"
+        sequence: !input button_3_make
+
+      # Button 4 -> A4
+      - conditions: "{{ button_channel == 'A4' and action_type == 'hit' }}"
+        sequence: !input button_4_hit
+      - conditions: "{{ button_channel == 'A4' and action_type == 'make' }}"
+        sequence: !input button_4_make
+
+      # Button 5 -> A5
+      - conditions: "{{ button_channel == 'A5' and action_type == 'hit' }}"
+        sequence: !input button_5_hit
+      - conditions: "{{ button_channel == 'A5' and action_type == 'make' }}"
+        sequence: !input button_5_make
+
+      # Button 6 -> A6
+      - conditions: "{{ button_channel == 'A6' and action_type == 'hit' }}"
+        sequence: !input button_6_hit
+      - conditions: "{{ button_channel == 'A6' and action_type == 'make' }}"
+        sequence: !input button_6_make
+
+      # Button 7 -> A7
+      - conditions: "{{ button_channel == 'A7' and action_type == 'hit' }}"
+        sequence: !input button_7_hit
+      - conditions: "{{ button_channel == 'A7' and action_type == 'make' }}"
+        sequence: !input button_7_make
+
+      # Button 8 -> A8
+      - conditions: "{{ button_channel == 'A8' and action_type == 'hit' }}"
+        sequence: !input button_8_hit
+      - conditions: "{{ button_channel == 'A8' and action_type == 'make' }}"
+        sequence: !input button_8_make
+
+
+      # --- TABLE B MAPPING (9-12 mapped to B1-B4) ---
+
+      # Button 9 -> B1
+      - conditions: "{{ button_channel == 'B1' and action_type == 'hit' }}"
+        sequence: !input button_9_hit
+      - conditions: "{{ button_channel == 'B1' and action_type == 'make' }}"
+        sequence: !input button_9_make
+
+      # Button 10 -> B2
+      - conditions: "{{ button_channel == 'B2' and action_type == 'hit' }}"
+        sequence: !input button_10_hit
+      - conditions: "{{ button_channel == 'B2' and action_type == 'make' }}"
+        sequence: !input button_10_make
+
+      # Button 11 -> B3
+      - conditions: "{{ button_channel == 'B3' and action_type == 'hit' }}"
+        sequence: !input button_11_hit
+      - conditions: "{{ button_channel == 'B3' and action_type == 'make' }}"
+        sequence: !input button_11_make
+
+      # Button 12 -> B4
+      - conditions: "{{ button_channel == 'B4' and action_type == 'hit' }}"
+        sequence: !input button_12_hit
+      - conditions: "{{ button_channel == 'B4' and action_type == 'make' }}"
+        sequence: !input button_12_make

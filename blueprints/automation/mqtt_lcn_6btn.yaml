@@ -1,0 +1,187 @@
+blueprint:
+  name: MQTT LCN 6-Button Keyboard
+  description: >-
+    Controls an LCN GT6 keyboard (6 buttons) with hit (click) and make (long press) actions.
+    Key presses come over MQTT as topic
+    domiq/LCN/keypress/0/<module>/<key> and payload hit, make or break.
+  domain: automation
+  input:
+    module_name:
+      name: LCN module ID
+      description: Address of the keyboard's LCN module, the <module> segment of the MQTT topic
+      selector:
+        number:
+          min: 1
+          max: 254
+          mode: box
+    
+    button_1_hit:
+      name: Button 1 - Hit Action
+      description: Action to perform on button 1 short press
+      default: []
+      selector:
+        action: {}
+    
+    button_1_make:
+      name: Button 1 - Make Action
+      description: Action to perform on button 1 long press
+      default: []
+      selector:
+        action: {}
+    
+    button_2_hit:
+      name: Button 2 - Hit Action
+      description: Action to perform on button 2 short press
+      default: []
+      selector:
+        action: {}
+    
+    button_2_make:
+      name: Button 2 - Make Action
+      description: Action to perform on button 2 long press
+      default: []
+      selector:
+        action: {}
+    
+    button_3_hit:
+      name: Button 3 - Hit Action
+      description: Action to perform on button 3 short press
+      default: []
+      selector:
+        action: {}
+    
+    button_3_make:
+      name: Button 3 - Make Action
+      description: Action to perform on button 3 long press
+      default: []
+      selector:
+        action: {}
+    
+    button_4_hit:
+      name: Button 4 - Hit Action
+      description: Action to perform on button 4 short press
+      default: []
+      selector:
+        action: {}
+    
+    button_4_make:
+      name: Button 4 - Make Action
+      description: Action to perform on button 4 long press
+      default: []
+      selector:
+        action: {}
+    
+    button_5_hit:
+      name: Button 5 - Hit Action
+      description: Action to perform on button 5 short press
+      default: []
+      selector:
+        action: {}
+    
+    button_5_make:
+      name: Button 5 - Make Action
+      description: Action to perform on button 5 long press
+      default: []
+      selector:
+        action: {}
+    
+    button_6_hit:
+      name: Button 6 - Hit Action
+      description: Action to perform on button 6 short press
+      default: []
+      selector:
+        action: {}
+    
+    button_6_make:
+      name: Button 6 - Make Action
+      description: Action to perform on button 6 long press
+      default: []
+      selector:
+        action: {}
+
+mode: parallel
+max_exceeded: silent
+
+trigger:
+  - platform: mqtt
+    topic: domiq/LCN/keypress/0/+/#
+    id: mqtt_trigger
+
+variables:
+  module_number: !input module_name
+  triggered_module: "{{ trigger.topic.split('/')[4] if trigger.topic is defined else '' }}"
+  button_channel: "{{ trigger.topic.split('/')[-1] if trigger.topic is defined else '' }}"
+  action_type: "{{ trigger.payload if trigger.payload is defined else '' }}"
+
+condition:
+  - condition: template
+    value_template: "{{ triggered_module | int == module_number | int }}"
+
+action:
+  
+  - choose:
+      # Button 1 (A2)
+      - conditions:
+          - condition: template
+            value_template: "{{ button_channel == 'A2' and action_type == 'hit' }}"
+        sequence: !input button_1_hit
+      
+      - conditions:
+          - condition: template
+            value_template: "{{ button_channel == 'A2' and action_type == 'make' }}"
+        sequence: !input button_1_make
+      
+      # Button 2 (A1)
+      - conditions:
+          - condition: template
+            value_template: "{{ button_channel == 'A1' and action_type == 'hit' }}"
+        sequence: !input button_2_hit
+      
+      - conditions:
+          - condition: template
+            value_template: "{{ button_channel == 'A1' and action_type == 'make' }}"
+        sequence: !input button_2_make
+      
+      # Button 3 (A4)
+      - conditions:
+          - condition: template
+            value_template: "{{ button_channel == 'A4' and action_type == 'hit' }}"
+        sequence: !input button_3_hit
+      
+      - conditions:
+          - condition: template
+            value_template: "{{ button_channel == 'A4' and action_type == 'make' }}"
+        sequence: !input button_3_make
+      
+      # Button 4 (A3)
+      - conditions:
+          - condition: template
+            value_template: "{{ button_channel == 'A3' and action_type == 'hit' }}"
+        sequence: !input button_4_hit
+      
+      - conditions:
+          - condition: template
+            value_template: "{{ button_channel == 'A3' and action_type == 'make' }}"
+        sequence: !input button_4_make
+      
+      # Button 5 (A6)
+      - conditions:
+          - condition: template
+            value_template: "{{ button_channel == 'A6' and action_type == 'hit' }}"
+        sequence: !input button_5_hit
+      
+      - conditions:
+          - condition: template
+            value_template: "{{ button_channel == 'A6' and action_type == 'make' }}"
+        sequence: !input button_5_make
+      
+      # Button 6 (A5)
+      - conditions:
+          - condition: template
+            value_template: "{{ button_channel == 'A5' and action_type == 'hit' }}"
+        sequence: !input button_6_hit
+      
+      - conditions:
+          - condition: template
+            value_template: "{{ button_channel == 'A5' and action_type == 'make' }}"
+        sequence: !input button_6_make

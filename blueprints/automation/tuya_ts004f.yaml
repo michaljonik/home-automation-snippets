@@ -1,0 +1,216 @@
+blueprint:
+  name: Tuya multi-gang (up to 6 buttons) remote control
+  description: >-
+    Controls a Tuya TS004F Zigbee scene switch (4 buttons; inputs for up to 6) with single click,
+    double click and hold actions. Reads the event_type of its event entity, e.g. 1_single,
+    2_double, 3_hold.
+  domain: automation
+  input:
+    remote_entities:
+      name: Remote Entities
+      description: One or more Tuya TS004F remote entities that report button actions
+      selector:
+        entity:
+          filter:
+          - domain:
+            - event
+          multiple: true
+          reorder: false
+    button_1_single:
+      name: Button 1 - Single Click
+      description: Action to perform on button 1 single click
+      default: []
+      selector:
+        action: {}
+    button_1_double:
+      name: Button 1 - Double Click
+      description: Action to perform on button 1 double click
+      default: []
+      selector:
+        action: {}
+    button_1_hold:
+      name: Button 1 - Hold
+      description: Action to perform on button 1 hold
+      default: []
+      selector:
+        action: {}
+    button_2_single:
+      name: Button 2 - Single Click
+      description: Action to perform on button 2 single click
+      default: []
+      selector:
+        action: {}
+    button_2_double:
+      name: Button 2 - Double Click
+      description: Action to perform on button 2 double click
+      default: []
+      selector:
+        action: {}
+    button_2_hold:
+      name: Button 2 - Hold
+      description: Action to perform on button 2 hold
+      default: []
+      selector:
+        action: {}
+    button_3_single:
+      name: Button 3 - Single Click
+      description: Action to perform on button 3 single click
+      default: []
+      selector:
+        action: {}
+    button_3_double:
+      name: Button 3 - Double Click
+      description: Action to perform on button 3 double click
+      default: []
+      selector:
+        action: {}
+    button_3_hold:
+      name: Button 3 - Hold
+      description: Action to perform on button 3 hold
+      default: []
+      selector:
+        action: {}
+    button_4_single:
+      name: Button 4 - Single Click
+      description: Action to perform on button 4 single click
+      default: []
+      selector:
+        action: {}
+    button_4_double:
+      name: Button 4 - Double Click
+      description: Action to perform on button 4 double click
+      default: []
+      selector:
+        action: {}
+    button_4_hold:
+      name: Button 4 - Hold
+      description: Action to perform on button 4 hold
+      default: []
+      selector:
+        action: {}
+    button_5_single:
+      name: Button 5 - Single Click
+      description: Action to perform on button 5 single click
+      default: []
+      selector:
+        action: {}
+    button_5_double:
+      name: Button 5 - Double Click
+      description: Action to perform on button 5 double click
+      default: []
+      selector:
+        action: {}
+    button_5_hold:
+      name: Button 5 - Hold
+      description: Action to perform on button 5 hold
+      default: []
+      selector:
+        action: {}
+    button_6_single:
+      name: Button 6 - Single Click
+      description: Action to perform on button 6 single click
+      default: []
+      selector:
+        action: {}
+    button_6_double:
+      name: Button 6 - Double Click
+      description: Action to perform on button 6 double click
+      default: []
+      selector:
+        action: {}
+    button_6_hold:
+      name: Button 6 - Hold
+      description: Action to perform on button 6 hold
+      default: []
+      selector:
+        action: {}
+mode: restart
+max_exceeded: silent
+trigger:
+- platform: state
+  entity_id: !input remote_entities
+  not_from:
+  - unavailable
+  not_to:
+  - unavailable
+  - unknown
+condition:
+- condition: template
+  value_template: "{{ as_datetime(trigger.to_state.state) is not none\n   and (now()
+    - as_datetime(trigger.to_state.state)).total_seconds() < 10 }}\n"
+action:
+- variables:
+    triggered_state: '{{ trigger.to_state.attributes.event_type }}'
+- choose:
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''1_single'' }}'
+    sequence: !input button_1_single
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''1_double'' }}'
+    sequence: !input button_1_double
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''1_hold'' }}'
+    sequence: !input button_1_hold
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''2_single'' }}'
+    sequence: !input button_2_single
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''2_double'' }}'
+    sequence: !input button_2_double
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''2_hold'' }}'
+    sequence: !input button_2_hold
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''3_single'' }}'
+    sequence: !input button_3_single
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''3_double'' }}'
+    sequence: !input button_3_double
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''3_hold'' }}'
+    sequence: !input button_3_hold
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''4_single'' }}'
+    sequence: !input button_4_single
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''4_double'' }}'
+    sequence: !input button_4_double
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''4_hold'' }}'
+    sequence: !input button_4_hold
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''5_single'' }}'
+    sequence: !input button_5_single
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''5_double'' }}'
+    sequence: !input button_5_double
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''5_hold'' }}'
+    sequence: !input button_5_hold
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''6_single'' }}'
+    sequence: !input button_6_single
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''6_double'' }}'
+    sequence: !input button_6_double
+  - conditions:
+    - condition: template
+      value_template: '{{ triggered_state == ''6_hold'' }}'
+    sequence: !input button_6_hold
