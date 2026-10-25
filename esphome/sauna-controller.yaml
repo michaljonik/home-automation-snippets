@@ -7,6 +7,12 @@
 #   - "trip reason" sensor says which limit fired
 # Does not replace the stove's own thermal cut-out.
 #
+# The latch is written to flash as soon as it changes, not on the default 1 min flash interval,
+# so a power cut right after a trip does not clear it. On ESP8266 the device config also needs
+#   esp8266:
+#     restore_from_flash: true
+# otherwise nothing is written to flash and the latch does not survive a reboot.
+#
 # Wiring (defaults):
 #   one_wire_pin  DS18B20 data, 4.7 kOhm pull-up to 3.3 V
 #   relay_pin     SSR input, active low (SSR + to 3.3 V, - to the pin); let the SSR switch a
@@ -49,6 +55,9 @@ globals:
     type: bool
     restore_value: true
     initial_value: "false"
+
+preferences:
+  id: sauna_preferences
 
 one_wire:
   - platform: gpio
@@ -148,6 +157,13 @@ script:
           level: ERROR
           format: "Safety trip: %s"
           args: ["reason.c_str()"]
+  # Globals hand their new value to preferences in their own loop, so wait a moment, then
+  # force the flash write instead of waiting for flash_write_interval.
+  - id: sauna_save_latch
+    mode: restart
+    then:
+      - delay: 500ms
+      - component.update: sauna_preferences
 
 interval:
   - interval: 1s
@@ -161,6 +177,7 @@ interval:
           if (!std::isnan(t) && t >= ${cutoff_temperature}) {
             if (!id(sauna_overtemp_latched)) {
               id(sauna_overtemp_latched) = true;
+              id(sauna_save_latch).execute();
               id(sauna_trip).execute("overtemp");
               return;
             }
@@ -191,4 +208,5 @@ button:
           const float t = id(sauna_temperature).state;
           if (std::isnan(t) || t >= ${cutoff_temperature}) return;
           id(sauna_overtemp_latched) = false;
+          id(sauna_save_latch).execute();
           id(sauna_trip_reason).publish_state("none");
